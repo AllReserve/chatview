@@ -44,7 +44,11 @@ class ChatGroupedListWidget extends StatefulWidget {
     required this.onChatListTap,
     required this.onChatBubbleLongPress,
     required this.isEnableSwipeToSeeTime,
+    required this.prevPageLoadingNotifier,
+    required this.nextPageLoadingNotifier,
     this.textFieldConfig,
+    this.loadMoreData,
+    this.isLastPage,
   }) : super(key: key);
 
   /// Allow user to swipe to see time while reaction pop is not open.
@@ -69,6 +73,19 @@ class ChatGroupedListWidget extends StatefulWidget {
   /// Provides configuration for text field.
   final TextFieldConfiguration? textFieldConfig;
 
+  /// Provides notifier for previous page loading.
+  final ValueNotifier<bool> prevPageLoadingNotifier;
+
+  /// Provides notifier for next page loading.
+  final ValueNotifier<bool> nextPageLoadingNotifier;
+
+  /// Provides callback when user actions reaches to top and needs to load more
+  /// chat
+  final PaginationCallback? loadMoreData;
+
+  /// Provides flag if there is no more next data left in list.
+  final ValueGetter<bool>? isLastPage;
+
   @override
   State<ChatGroupedListWidget> createState() => _ChatGroupedListWidgetState();
 }
@@ -92,6 +109,9 @@ class _ChatGroupedListWidgetState extends State<ChatGroupedListWidget>
 
   ChatBackgroundConfiguration get chatBackgroundConfig =>
       chatListConfig.chatBackgroundConfig;
+
+  bool get isPaginationEnabled =>
+      featureActiveConfig?.enablePagination ?? false;
 
   @override
   void initState() {
@@ -309,62 +329,70 @@ class _ChatGroupedListWidgetState extends State<ChatGroupedListWidget>
 
           return ValueListenableBuilder(
             valueListenable: _listKey,
-            builder: (context, key, _) => ListView.builder(
-              key: key,
-              controller: widget.scrollController,
-              // When reaction popup is being appeared at that user should not
-              // scroll.
-              physics: showPopUp ? const NeverScrollableScrollPhysics() : null,
-              padding: EdgeInsets.zero,
-              reverse: true,
-              itemCount: (enableSeparator
-                  ? messages.length + messageSeparator.length
-                  : messages.length),
-              itemBuilder: (context, index) {
-                /// Check [messageSeparator] contains group separator for [index]
-                if (enableSeparator && messageSeparator.containsKey(index)) {
-                  final separator = messageSeparator[index]!;
-                  return chatBackgroundConfig.groupSeparatorBuilder
-                          ?.call(separator.toString()) ??
-                      ChatGroupHeader(
-                        day: separator,
-                        groupSeparatorConfig:
-                            chatBackgroundConfig.defaultGroupSeparatorConfig,
+            builder: (context, key, _) =>
+                NotificationListener<ScrollUpdateNotification>(
+              onNotification: (notification) => _onScrollUpdateNotification(
+                notification,
+                messages,
+              ),
+              child: ListView.builder(
+                key: key,
+                controller: widget.scrollController,
+                // When reaction popup is being appeared at that user should not
+                // scroll.
+                physics:
+                    showPopUp ? const NeverScrollableScrollPhysics() : null,
+                padding: EdgeInsets.zero,
+                reverse: true,
+                itemCount: (enableSeparator
+                    ? messages.length + messageSeparator.length
+                    : messages.length),
+                itemBuilder: (context, index) {
+                  /// Check [messageSeparator] contains group separator for [index]
+                  if (enableSeparator && messageSeparator.containsKey(index)) {
+                    final separator = messageSeparator[index]!;
+                    return chatBackgroundConfig.groupSeparatorBuilder
+                            ?.call(separator.toString()) ??
+                        ChatGroupHeader(
+                          day: separator,
+                          groupSeparatorConfig:
+                              chatBackgroundConfig.defaultGroupSeparatorConfig,
+                        );
+                  }
+
+                  /// By removing separators encountered till now from the [index]
+                  /// so that we'll get actual index to display message in chat
+                  var newIndex = index - (separatorCounts[index] ?? 0);
+                  final message = messages[newIndex];
+
+                  return ValueListenableBuilder<String?>(
+                    valueListenable: _replyId,
+                    builder: (context, state, child) {
+                      final enableScrollToRepliedMsg = chatListConfig
+                              .repliedMessageConfig
+                              ?.repliedMsgAutoScrollConfig
+                              .enableScrollToRepliedMsg ??
+                          false;
+                      return ChatBubbleWidget(
+                        key: message.key,
+                        message: message,
+                        slideAnimation: _slideAnimation,
+                        onLongPress: (yCoordinate, xCoordinate) =>
+                            widget.onChatBubbleLongPress(
+                          yCoordinate,
+                          xCoordinate,
+                          message,
+                        ),
+                        onSwipe: widget.assignReplyMessage,
+                        shouldHighlight: state == message.id,
+                        onReplyTap: enableScrollToRepliedMsg
+                            ? (replyId) => _onReplyTap(replyId, messages)
+                            : null,
                       );
-                }
-
-                /// By removing separators encountered till now from the [index]
-                /// so that we'll get actual index to display message in chat
-                var newIndex = index - (separatorCounts[index] ?? 0);
-                final message = messages[newIndex];
-
-                return ValueListenableBuilder<String?>(
-                  valueListenable: _replyId,
-                  builder: (context, state, child) {
-                    final enableScrollToRepliedMsg = chatListConfig
-                            .repliedMessageConfig
-                            ?.repliedMsgAutoScrollConfig
-                            .enableScrollToRepliedMsg ??
-                        false;
-                    return ChatBubbleWidget(
-                      key: message.key,
-                      message: message,
-                      slideAnimation: _slideAnimation,
-                      onLongPress: (yCoordinate, xCoordinate) =>
-                          widget.onChatBubbleLongPress(
-                        yCoordinate,
-                        xCoordinate,
-                        message,
-                      ),
-                      onSwipe: widget.assignReplyMessage,
-                      shouldHighlight: state == message.id,
-                      onReplyTap: enableScrollToRepliedMsg
-                          ? (replyId) => _onReplyTap(replyId, messages)
-                          : null,
-                    );
-                  },
-                );
-              },
+                    },
+                  );
+                },
+              ),
             ),
           );
         }
@@ -438,5 +466,60 @@ class _ChatGroupedListWidgetState extends State<ChatGroupedListWidget>
     messageSeparator[separatorIndex] = lastMatchedDate;
 
     return (messageSeparator, lastMatchedDate, separatorCounts);
+  }
+
+  bool _onScrollUpdateNotification(
+    ScrollUpdateNotification notification,
+    List<Message> messages,
+  ) {
+    if (!isPaginationEnabled) return true;
+
+    final metrics = notification.metrics;
+
+    PaginationScrollUpdateResult result = (direction: null, message: null);
+
+    final pixels = metrics.pixels;
+
+    // Changed direction as ListView scrolls direction is reversed.
+    if (pixels <= metrics.minScrollExtent) {
+      result = (
+        direction: ChatPaginationDirection.next,
+        message: messages.firstOrNull,
+      );
+    } else if (pixels >= metrics.maxScrollExtent) {
+      result = (
+        direction: ChatPaginationDirection.previous,
+        message: messages.lastOrNull,
+      );
+    }
+
+    if (result.direction == null || result.message == null) return true;
+
+    _pagination(direction: result.direction!, message: result.message!);
+    return true;
+  }
+
+  void _pagination({
+    required ChatPaginationDirection direction,
+    required Message message,
+  }) {
+    if (widget.loadMoreData == null || (widget.isLastPage?.call() ?? false)) {
+      return;
+    }
+
+    switch (direction) {
+      case ChatPaginationDirection.previous:
+        if (widget.prevPageLoadingNotifier.value) return;
+        widget.prevPageLoadingNotifier.value = true;
+        widget.loadMoreData
+            ?.call(direction, message)
+            .whenComplete(() => widget.prevPageLoadingNotifier.value = false);
+      case ChatPaginationDirection.next:
+        if (widget.nextPageLoadingNotifier.value) return;
+        widget.nextPageLoadingNotifier.value = true;
+        widget.loadMoreData
+            ?.call(direction, message)
+            .whenComplete(() => widget.nextPageLoadingNotifier.value = false);
+    }
   }
 }
