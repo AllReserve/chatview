@@ -45,6 +45,7 @@ class ChatGroupedListWidget extends StatefulWidget {
     required this.onChatBubbleLongPress,
     required this.isEnableSwipeToSeeTime,
     this.textFieldConfig,
+    this.keyboardDismissBehavior,
   }) : super(key: key);
 
   /// Allow user to swipe to see time while reaction pop is not open.
@@ -68,6 +69,9 @@ class ChatGroupedListWidget extends StatefulWidget {
 
   /// Provides configuration for text field.
   final TextFieldConfiguration? textFieldConfig;
+
+  /// Provides configuration for keyboard dismiss behavior.
+  final ScrollViewKeyboardDismissBehavior? keyboardDismissBehavior;
 
   @override
   State<ChatGroupedListWidget> createState() => _ChatGroupedListWidgetState();
@@ -137,6 +141,7 @@ class _ChatGroupedListWidgetState extends State<ChatGroupedListWidget>
       // When reaction popup is being appeared at that user should not scroll.
       physics: showPopUp ? const NeverScrollableScrollPhysics() : null,
       controller: widget.scrollController,
+      keyboardDismissBehavior: widget.keyboardDismissBehavior,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

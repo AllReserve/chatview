@@ -40,6 +40,7 @@ class ChatListWidget extends StatefulWidget {
     this.isLastPage,
     this.onChatListTap,
     this.textFieldConfig,
+    this.keyboardDismissBehavior,
   }) : super(key: key);
 
   /// Provides controller for accessing few function for running chat.
@@ -64,6 +65,9 @@ class ChatListWidget extends StatefulWidget {
 
   /// Provides configuration for text field config.
   final TextFieldConfiguration? textFieldConfig;
+
+  /// Provides configuration for keyboard dismiss behavior.
+  final ScrollViewKeyboardDismissBehavior? keyboardDismissBehavior;
 
   @override
   State<ChatListWidget> createState() => _ChatListWidgetState();
@@ -137,6 +141,8 @@ class _ChatListWidgetState extends State<ChatListWidget> {
               return Stack(
                 children: [
                   ChatGroupedListWidget(
+                    keyboardDismissBehavior:
+                        widget.keyboardDismissBehavior,
                     showPopUp: showPopupValue,
                     scrollController: scrollController,
                     isEnableSwipeToSeeTime:

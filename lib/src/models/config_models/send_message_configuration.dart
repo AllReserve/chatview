@@ -54,6 +54,9 @@ class SendMessageConfiguration {
     this.selectedImageViewHeight,
     this.imageBorderRadius,
     this.selectedImageViewBuilder,
+    this.trailingButtonBuilder,
+    this.leadingButtonBuilder,
+    this.keyboardDismissBehavior,
   });
 
   /// Used to give background color to text field.
@@ -127,6 +130,15 @@ class SendMessageConfiguration {
 
   /// Provides ability to build custom view for selected images in text field.
   final SelectedImageViewBuilder? selectedImageViewBuilder;
+
+  /// Provides ability to pass custom button for custom actions. like pick image/file/location/etc.
+  final Widget? Function(BuildContext context)? trailingButtonBuilder;
+
+  /// Provides ability to pass custom button for custom actions. like pick image/file/location/etc.
+  final Widget? Function(BuildContext context)? leadingButtonBuilder;
+
+  /// Provides configuration for keyboard dismiss behavior.
+  final ScrollViewKeyboardDismissBehavior? keyboardDismissBehavior;
 }
 
 class ImagePickerIconsConfiguration {

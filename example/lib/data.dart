@@ -113,5 +113,11 @@ class Data {
       sentBy: '2',
       status: MessageStatus.read,
     ),
-  ];
+  ]
+      .map(
+        (message) => message.copyWith(
+          createdAt: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      )
+      .toList();
 }

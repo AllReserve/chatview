@@ -271,6 +271,8 @@ class _ChatViewState extends State<ChatView>
                                     ?.unfocus(),
                                 behavior: HitTestBehavior.opaque,
                                 child: ChatListWidget(
+                                  keyboardDismissBehavior:
+                                      widget.sendMessageConfig?.keyboardDismissBehavior,
                                   chatController: widget.chatController,
                                   loadMoreData: widget.loadMoreData,
                                   isLastPage: widget.isLastPage,

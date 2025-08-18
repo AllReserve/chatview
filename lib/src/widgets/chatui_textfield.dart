@@ -200,6 +200,9 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
         builder: (_, isRecordingValue, child) {
           return Row(
             children: [
+              if (sendMessageConfig?.leadingButtonBuilder != null)
+                sendMessageConfig?.leadingButtonBuilder!(context) ??
+                    const SizedBox.shrink(),
               if (isRecordingValue && controller != null && !kIsWeb)
                 Expanded(
                   child: AudioWaveforms(
@@ -213,7 +216,7 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
                     decoration: voiceRecordingConfig?.decoration ??
                         BoxDecoration(
                           color: voiceRecordingConfig?.backgroundColor,
-                          borderRadius: BorderRadius.circular(12.0),
+                          borderRadius: BorderRadius.circular(22.0),
                         ),
                     waveStyle: voiceRecordingConfig?.waveStyle ??
                         WaveStyle(
@@ -281,6 +284,9 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
                   } else {
                     return Row(
                       children: [
+                        if (sendMessageConfig?.trailingButtonBuilder != null)
+                          sendMessageConfig?.trailingButtonBuilder!(context) ??
+                              const SizedBox.shrink(),
                         if (!isRecordingValue) ...[
                           if (sendMessageConfig?.enableCameraImagePicker ??
                               true)

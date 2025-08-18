@@ -136,6 +136,7 @@ class _ChatScreenState extends State<ChatScreen> {
           flashingCircleDarkColor: theme.flashingCircleDarkColor,
         ),
         appBar: ChatViewAppBar(
+          leading: const SizedBox(width: 12),
           elevation: theme.elevation,
           backGroundColor: theme.appBarColor,
           profilePicture: Data.profileImage,
@@ -189,6 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
           backgroundColor: theme.backgroundColor,
         ),
         sendMessageConfig: SendMessageConfiguration(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           imagePickerIconsConfig: ImagePickerIconsConfiguration(
             cameraIconColor: theme.cameraIconColor,
             galleryIconColor: theme.galleryIconColor,
@@ -216,6 +218,18 @@ class _ChatScreenState extends State<ChatScreen> {
               waveColor: theme.waveColor ?? Colors.white,
               extendWaveform: true,
             ),
+          ),
+          enableCameraImagePicker: false,
+          enableGalleryImagePicker: false,
+          leadingButtonBuilder: (context) => IconButton(
+            onPressed: () {},
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.add),
+          ),
+          trailingButtonBuilder: (context) => IconButton(
+            onPressed: () {},
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.attach_file),
           ),
         ),
         chatBubbleConfig: ChatBubbleConfiguration(
