@@ -208,6 +208,7 @@ class _ChatScreenState extends State<ChatScreen> {
             },
             compositionThresholdTime: const Duration(seconds: 1),
             textStyle: TextStyle(color: theme.textFieldTextColor),
+            margin: const EdgeInsets.symmetric(horizontal: 10),
           ),
           micIconColor: theme.replyMicIconColor,
           voiceRecordingConfiguration: VoiceRecordingConfiguration(
@@ -221,10 +222,11 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           enableCameraImagePicker: false,
           enableGalleryImagePicker: false,
+          shouldSendImageWithText: true,
           leadingButtonBuilder: (context) => IconButton(
             onPressed: () {},
             padding: EdgeInsets.zero,
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.emoji_emotions_outlined),
           ),
           trailingButtonBuilder: (context) => IconButton(
             onPressed: () {},

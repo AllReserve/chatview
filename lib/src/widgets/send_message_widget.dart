@@ -29,6 +29,7 @@ import '../extensions/extensions.dart';
 import '../models/config_models/message_configuration.dart';
 import '../models/config_models/send_message_configuration.dart';
 import '../utils/constants/constants.dart';
+import '../utils/markdown_parser.dart';
 import '../values/typedefs.dart';
 import 'chatui_textfield.dart';
 import 'reply_message_view.dart';
@@ -65,7 +66,9 @@ class SendMessageWidget extends StatefulWidget {
 }
 
 class SendMessageWidgetState extends State<SendMessageWidget> {
-  final _textEditingController = TextEditingController();
+  final _textEditingController = MarkdownTextEditingController(
+    styles: MarkdownTextStyles(),
+  );
 
   final _focusNode = FocusNode();
 

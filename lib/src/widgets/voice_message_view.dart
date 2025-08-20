@@ -23,6 +23,7 @@
 import 'dart:async';
 
 import 'package:audio_waveforms/audio_waveforms.dart';
+import 'package:chatview/src/utils/package_strings.dart';
 import 'package:chatview_utils/chatview_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -153,14 +154,64 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
                 waveformType: WaveformType.fitWidth,
                 playerWaveStyle:
                     widget.config?.playerWaveStyle ?? playerWaveStyle,
-                padding: widget.config?.waveformPadding ??
-                    const EdgeInsets.only(right: 10),
-                margin: widget.config?.waveformMargin,
+                padding: widget.config?.waveformPadding ?? EdgeInsets.zero,
+                margin: widget.config?.waveformMargin ?? EdgeInsets.zero,
                 animationCurve: widget.config?.animationCurve ?? Curves.easeIn,
                 animationDuration: widget.config?.animationDuration ??
                     const Duration(milliseconds: 500),
                 enableSeekGesture: widget.config?.enableSeekGesture ?? true,
               ),
+              // ValueListenableBuilder<PlayerState>(
+              //   builder: (context, state, child) {
+              //     return IconButton(
+              //       onPressed: _playOrPause,
+              //       icon: state.isStopped ||
+              //               state.isPaused ||
+              //               state.isInitialised
+              //           ? Text(
+              //               (controller.maxDuration / 1000).toStringAsFixed(1),
+              //               style: const TextStyle(color: Colors.white),
+              //             )
+              //           : StreamBuilder<int>(
+              //               stream: controller.onCurrentDurationChanged,
+              //               builder: (context, snapshot) {
+              //                 return Text(
+              //                   ((snapshot.data ?? 0) / 1000)
+              //                       .toStringAsFixed(1),
+              //                   style: const TextStyle(color: Colors.white),
+              //                 );
+              //               },
+              //             ),
+              //     );
+              //   },
+              //   valueListenable: _playerState,
+              // ),
+              SizedBox(
+                width: 60,
+                child: Center(
+                  child: StreamBuilder<int>(
+                    stream: controller.onCurrentDurationChanged,
+                    builder: (context, snapshot) {
+                      final duration = snapshot.data ?? 0;
+                      if (duration == 0) {
+                        return FutureBuilder<int>(
+                          future: controller.getDuration(),
+                          builder: (context, snapshot) {
+                            return Text(
+                              (snapshot.data?.mmss() ?? '00:00'),
+                              style: const TextStyle(color: Colors.white),
+                            );
+                          },
+                        );
+                      }
+                      return Text(
+                        (duration.mmss()),
+                        style: const TextStyle(color: Colors.white),
+                      );
+                    },
+                  ),
+                ),
+              )
             ],
           ),
         ),

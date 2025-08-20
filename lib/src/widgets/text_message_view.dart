@@ -27,6 +27,7 @@ import '../models/chat_bubble.dart';
 import '../models/config_models/link_preview_configuration.dart';
 import '../models/config_models/message_reaction_configuration.dart';
 import '../utils/constants/constants.dart';
+import '../utils/markdown_parser.dart';
 import 'link_preview.dart';
 import 'reaction_widget.dart';
 
@@ -95,13 +96,15 @@ class TextMessageView extends StatelessWidget {
                   linkPreviewConfig: _linkPreviewConfig,
                   url: textMessage,
                 )
-              : Text(
-                  textMessage,
-                  style: _textStyle ??
-                      textTheme.bodyMedium!.copyWith(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
+              : MarkdownText(
+                  text: textMessage,
+                  styles: MarkdownTextStyles(
+                    defaultStyle: _textStyle ??
+                        textTheme.bodyMedium!.copyWith(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                  ),
                 ),
         ),
         if (message.reaction.reactions.isNotEmpty)

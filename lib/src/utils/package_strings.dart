@@ -46,3 +46,22 @@ class PackageStrings {
   static ChatViewLocale get currentLocale =>
       _localeObjects[_currentLocale] ?? ChatViewLocale.en;
 }
+
+extension DurationExtensionMMSS on Duration {
+  String toMMSS() {
+    final minutes = inSeconds ~/ 60;
+    final seconds = inSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String toHHMM() {
+    final hours = inSeconds ~/ 3600;
+    final minutes = (inSeconds % 3600) ~/ 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
+  }
+}
+
+extension IntExtensionMMSS on int {
+  /// Converts total seconds to MM:SS format
+  String mmss() => Duration(milliseconds: this).toMMSS();
+}
