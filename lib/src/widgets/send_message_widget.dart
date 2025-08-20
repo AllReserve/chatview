@@ -81,6 +81,8 @@ class SendMessageWidgetState extends State<SendMessageWidget> {
 
   ChatUser? currentUser;
 
+  bool _isEmojiPickerVisible = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -138,12 +140,14 @@ class SendMessageWidgetState extends State<SendMessageWidget> {
                           ),
                         Padding(
                           key: chatViewIW?.chatTextFieldViewKey,
-                          padding: EdgeInsets.fromLTRB(
-                            bottomPadding4,
-                            bottomPadding4,
-                            bottomPadding4,
-                            _bottomPadding,
-                          ),
+                          padding: _isEmojiPickerVisible
+                              ? EdgeInsets.zero
+                              : EdgeInsets.fromLTRB(
+                                  bottomPadding4,
+                                  bottomPadding4,
+                                  bottomPadding4,
+                                  _bottomPadding,
+                                ),
                           child: Stack(
                             alignment: Alignment.bottomCenter,
                             children: [
@@ -167,6 +171,11 @@ class SendMessageWidgetState extends State<SendMessageWidget> {
                                 onPressed: _onPressed,
                                 sendMessageConfig: widget.sendMessageConfig,
                                 onRecordingComplete: _onRecordingComplete,
+                                onKeyboardChange: (isVisible) {
+                                  setState(() {
+                                    _isEmojiPickerVisible = isVisible;
+                                  });
+                                },
                                 onImageSelected: (images, messageId) {
                                   if (widget.sendMessageConfig
                                           ?.shouldSendImageWithText ??

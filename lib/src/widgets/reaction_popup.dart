@@ -118,10 +118,7 @@ class ReactionPopupState extends State<ReactionPopup>
                           margin: reactionPopupConfig?.margin ??
                               const EdgeInsets.symmetric(horizontal: 25),
                           padding: reactionPopupConfig?.padding ??
-                              const EdgeInsets.symmetric(
-                                vertical: 6,
-                                horizontal: 14,
-                              ),
+                              const EdgeInsets.symmetric(horizontal: 6),
                           decoration: BoxDecoration(
                             color: reactionPopupConfig?.backgroundColor ??
                                 Colors.white,

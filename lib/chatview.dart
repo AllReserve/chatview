@@ -41,3 +41,4 @@ export 'src/values/enumeration.dart';
 export 'src/values/typedefs.dart';
 export 'src/widgets/chat_view.dart';
 export 'src/widgets/chat_view_appbar.dart';
+export 'src/widgets/emoji_picker_widget.dart';

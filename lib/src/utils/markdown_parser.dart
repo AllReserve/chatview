@@ -157,41 +157,6 @@ class MarkdownText extends StatelessWidget {
   }
 }
 
-// /// A [TextEditingController] that styles text in-place using Markdown syntax.
-// class MarkdownTextEditingController extends TextEditingController {
-//   final MarkdownTextStyles styles;
-
-//   MarkdownTextEditingController({
-//     String? text,
-//     required this.styles,
-//   }) : super(text: text);
-
-//   @override
-//   TextSpan buildTextSpan({
-//     required BuildContext context,
-//     TextStyle? style,
-//     required bool withComposing,
-//   }) {
-//     // Use the provided style as the default, but allow our custom
-//     // styles to override it.
-//     final effectiveStyles = MarkdownTextStyles(
-//       defaultStyle: style,
-//       boldStyle: style?.merge(styles.boldStyle) ?? styles.boldStyle,
-//       italicStyle: style?.merge(styles.italicStyle) ?? styles.italicStyle,
-//       strikethroughStyle:
-//           style?.merge(styles.strikethroughStyle) ?? styles.strikethroughStyle,
-//       inlineCodeStyle:
-//           style?.merge(styles.inlineCodeStyle) ?? styles.inlineCodeStyle,
-//       codeBlockStyle:
-//           style?.merge(styles.codeBlockStyle) ?? styles.codeBlockStyle,
-//     );
-
-//     final List<TextSpan> children = parseMarkdownText(text, effectiveStyles);
-
-//     return TextSpan(style: style, children: children);
-//   }
-// }
-
 /// A [TextEditingController] that styles text in-place using Markdown syntax.
 ///
 /// This implementation is robust and correctly handles cursor position,

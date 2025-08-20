@@ -19,13 +19,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
 import 'dart:async';
 import 'dart:io' show File, Platform;
 
 import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:chatview/src/utils/markdown_parser.dart';
 import 'package:chatview_utils/chatview_utils.dart';
-import 'package:flutter/foundation.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -45,25 +47,16 @@ class ChatUITextField extends StatefulWidget {
     required this.onPressed,
     required this.onRecordingComplete,
     required this.onImageSelected,
+    required this.onKeyboardChange,
   });
 
-  /// Provides configuration of default text field in chat.
   final SendMessageConfiguration? sendMessageConfig;
-
-  /// Provides focusNode for focusing text field.
   final FocusNode focusNode;
-
-  /// Provides functions which handles text field.
   final MarkdownTextEditingController textEditingController;
-
-  /// Provides callback when user tap on text field.
   final VoidCallback onPressed;
-
-  /// Provides callback once voice is recorded.
   final ValueSetter<String?> onRecordingComplete;
-
-  /// Provides callback when user select images from camera/gallery.
   final StringsCallBack onImageSelected;
+  final ValueSetter<bool> onKeyboardChange;
 
   @override
   State<ChatUITextField> createState() => _ChatUITextFieldState();
@@ -80,21 +73,20 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
   RecorderController? _controller;
   bool Function(KeyEvent)? _keyboardHandler;
 
+  // Emoji Picker state
+  bool _isEmojiPickerVisible = false;
+  final ScrollController _emojiScrollController = ScrollController();
+
   // Configuration getters
   SendMessageConfiguration? get _sendMessageConfig => widget.sendMessageConfig;
-
   VoiceRecordingConfiguration? get _voiceRecordingConfig =>
       _sendMessageConfig?.voiceRecordingConfiguration;
-
   ImagePickerIconsConfiguration? get _imagePickerIconsConfig =>
       _sendMessageConfig?.imagePickerIconsConfig;
-
   TextFieldConfiguration? get _textFieldConfig =>
       _sendMessageConfig?.textFieldConfig;
-
   CancelRecordConfiguration? get _cancelRecordConfiguration =>
       _sendMessageConfig?.cancelRecordConfiguration;
-
   OutlineInputBorder get _outLineBorder => OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.transparent),
         borderRadius: _textFieldConfig?.borderRadius ??
@@ -103,7 +95,6 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
 
   bool get _isVoiceRecordingSupported =>
       !kIsWeb && (Platform.isIOS || Platform.isAndroid);
-
   bool get _isVoiceRecordingEnabled =>
       (_sendMessageConfig?.allowRecordingVoice ?? false) &&
       _isVoiceRecordingSupported;
@@ -115,6 +106,13 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     _setupListeners();
     _initializeRecorderController();
     _setupKeyboardHandler();
+
+    // Emoji Picker smart hiding when text field gains focus
+    widget.focusNode.addListener(() {
+      if (widget.focusNode.hasFocus && _isEmojiPickerVisible) {
+        setState(() => _isEmojiPickerVisible = false);
+      }
+    });
   }
 
   @override
@@ -128,9 +126,8 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     _imagePicker = ImagePicker();
     _isRecording = ValueNotifier(false);
     _composingStatus = ValueNotifier(TypeWriterStatus.typed);
-    _debouncer = Debouncer(
-      _textFieldConfig?.compositionThresholdTime ?? const Duration(seconds: 1),
-    );
+    _debouncer = Debouncer(_textFieldConfig?.compositionThresholdTime ??
+        const Duration(seconds: 1));
   }
 
   void _setupListeners() {
@@ -162,8 +159,11 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     if (_keyboardHandler != null) {
       HardwareKeyboard.instance.removeHandler(_keyboardHandler!);
     }
-
     _controller?.dispose();
+    _emojiScrollController.dispose();
+    if (_isEmojiPickerVisible) {
+      setState(() => _isEmojiPickerVisible = false);
+    }
   }
 
   void _onComposingStatusChanged() {
@@ -183,7 +183,6 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
           event.logicalKey != LogicalKeyboardKey.enter) {
         return false;
       }
-
       final pressedKeys = HardwareKeyboard.instance.logicalKeysPressed;
       final isShiftPressed = pressedKeys.any((key) =>
           key == LogicalKeyboardKey.shiftLeft ||
@@ -228,46 +227,155 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     _inputText.value = '';
   }
 
+  // --- WhatsApp-Style Emoji Picker Integration ---
+  void _toggleEmojiPicker() {
+    setState(() => _isEmojiPickerVisible = !_isEmojiPickerVisible);
+    if (_isEmojiPickerVisible) {
+      widget.focusNode.unfocus();
+    } else {
+      widget.focusNode.requestFocus();
+    }
+    widget.onKeyboardChange(_isEmojiPickerVisible);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: _textFieldConfig?.padding ?? EdgeInsets.zero,
-      margin: _textFieldConfig?.margin,
-      decoration: BoxDecoration(
-        borderRadius: _textFieldConfig?.borderRadius ??
-            BorderRadius.circular(textFieldBorderRadius),
-        color: _sendMessageConfig?.textFieldBackgroundColor ?? Colors.white,
-      ),
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _isRecording,
-        builder: (context, isRecordingValue, _) {
-          return Row(
-            children: [
-              // Leading button
-              if (_sendMessageConfig?.leadingButtonBuilder != null &&
-                  !isRecordingValue)
-                _sendMessageConfig!.leadingButtonBuilder!(context) ??
-                    const SizedBox.shrink()
-              else
-                _buildCancelRecordingButton(),
+    final theme = Theme.of(context);
+    final iconColor = _sendMessageConfig?.defaultSendButtonColor ??
+        theme.iconTheme.color ??
+        Colors.grey.shade600;
 
-              // Main input area
-              Expanded(
-                child: isRecordingValue && _controller != null
-                    ? _buildVoiceRecordingWaveform()
-                    : _buildTextInput(),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: _textFieldConfig?.padding ?? EdgeInsets.zero,
+          margin: _textFieldConfig?.margin,
+          decoration: BoxDecoration(
+            borderRadius: _textFieldConfig?.borderRadius ??
+                BorderRadius.circular(textFieldBorderRadius),
+            color: _sendMessageConfig?.textFieldBackgroundColor ??
+                theme.colorScheme.surface,
+          ),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _isRecording,
+            builder: (context, isRecordingValue, _) {
+              return Row(
+                children: [
+                  // Leading button
+                  if (_sendMessageConfig?.leadingButtonBuilder != null ||
+                      !isRecordingValue)
+                    _sendMessageConfig?.leadingButtonBuilder?.call(context) ??
+                        // --- Emoji toggle button ---
+                        IconButton(
+                          icon: Icon(
+                            _isEmojiPickerVisible
+                                ? Icons.keyboard
+                                : Icons.emoji_emotions_outlined,
+                            color: iconColor,
+                          ),
+                          onPressed: _toggleEmojiPicker,
+                        )
+                  else
+                    _buildCancelRecordingButton(),
+
+                  // Main input area
+                  Expanded(
+                    child: isRecordingValue && _controller != null
+                        ? _buildVoiceRecordingWaveform()
+                        : _buildTextInput(),
+                  ),
+
+                  // --- Action buttons ---
+                  _buildActionButtons(isRecordingValue, iconColor),
+                ],
+              );
+            },
+          ),
+        ),
+        if (_isEmojiPickerVisible) const SizedBox(height: 8),
+        // --- Emoji Picker Bottom Sheet ---
+        if (_isEmojiPickerVisible)
+          SizedBox(
+            height: 270,
+            child: EmojiPicker(
+              textEditingController: widget.textEditingController,
+              scrollController: _emojiScrollController,
+              config: Config(
+                height: 256,
+                checkPlatformCompatibility: true,
+                viewOrderConfig: const ViewOrderConfig(
+                  top: EmojiPickerItem.searchBar,
+                  middle: EmojiPickerItem.emojiView,
+                  bottom: EmojiPickerItem.categoryBar,
+                ),
+                emojiTextStyle: _textFieldConfig?.textStyle,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: theme.colorScheme.surface,
+                ),
+                skinToneConfig: const SkinToneConfig(),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: theme.colorScheme.surface,
+                  dividerColor: theme.colorScheme.surface,
+                  indicatorColor: iconColor,
+                  iconColorSelected: iconColor,
+                  iconColor: iconColor,
+                  backspaceColor: iconColor,
+                  tabBarHeight: 50,
+                  customCategoryView: (
+                    config,
+                    state,
+                    tabController,
+                    pageController,
+                  ) {
+                    return WhatsAppCategoryView(
+                      config,
+                      state,
+                      tabController,
+                      pageController,
+                    );
+                  },
+                  categoryIcons: const CategoryIcons(
+                    recentIcon: Icons.access_time_outlined,
+                    smileyIcon: Icons.emoji_emotions_outlined,
+                    animalIcon: Icons.cruelty_free_outlined,
+                    foodIcon: Icons.coffee_outlined,
+                    activityIcon: Icons.sports_soccer_outlined,
+                    travelIcon: Icons.directions_car_filled_outlined,
+                    objectIcon: Icons.lightbulb_outline,
+                    symbolIcon: Icons.emoji_symbols_outlined,
+                    flagIcon: Icons.flag_outlined,
+                  ),
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: theme.colorScheme.surface,
+                  buttonColor: theme.colorScheme.surface,
+                  buttonIconColor: iconColor,
+                ),
+                searchViewConfig: SearchViewConfig(
+                  backgroundColor: theme.colorScheme.surface,
+                  buttonIconColor: iconColor,
+                  customSearchView: (
+                    config,
+                    state,
+                    showEmojiView,
+                  ) {
+                    return WhatsAppSearchView(
+                      config,
+                      state,
+                      showEmojiView,
+                    );
+                  },
+                ),
               ),
-
-              // Action buttons
-              _buildActionButtons(isRecordingValue),
-            ],
-          );
-        },
-      ),
+            ),
+          ),
+      ],
     );
   }
 
   Widget _buildVoiceRecordingWaveform() {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Expanded(
@@ -286,14 +394,17 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
                   extendWaveform: true,
                   showMiddleLine: false,
                   waveColor: _voiceRecordingConfig?.waveStyle?.waveColor ??
-                      Colors.black,
+                      theme.colorScheme.onSurface,
                 ),
           ),
         ),
         StreamBuilder<Duration>(
           stream: _controller!.onCurrentDuration,
           builder: (context, snapshot) {
-            return Text(snapshot.data?.toMMSS() ?? '00:00');
+            return Text(
+              snapshot.data?.toMMSS() ?? '00:00',
+              style: Theme.of(context).textTheme.bodyMedium,
+            );
           },
         ),
       ],
@@ -301,11 +412,11 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
   }
 
   Widget _buildTextInput() {
+    final theme = Theme.of(context);
     return TextField(
       focusNode: widget.focusNode,
       controller: widget.textEditingController,
-      style:
-          _textFieldConfig?.textStyle ?? const TextStyle(color: Colors.white),
+      style: _textFieldConfig?.textStyle ?? theme.textTheme.bodyMedium,
       maxLines: _textFieldConfig?.maxLines ?? 5,
       minLines: _textFieldConfig?.minLines ?? 1,
       keyboardType: _textFieldConfig?.textInputType,
@@ -317,17 +428,15 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
       decoration: InputDecoration(
         hintText:
             _textFieldConfig?.hintText ?? PackageStrings.currentLocale.message,
-        fillColor: _sendMessageConfig?.textFieldBackgroundColor ?? Colors.white,
+        fillColor: _sendMessageConfig?.textFieldBackgroundColor ??
+            theme.colorScheme.surface,
         filled: true,
         hintStyle: _textFieldConfig?.hintStyle ??
-            TextStyle(
+            theme.textTheme.bodyMedium?.copyWith(
+              color: theme.hintColor,
               fontSize: 16,
-              fontWeight: FontWeight.w400,
-              color: Colors.grey.shade600,
-              letterSpacing: 0.25,
             ),
-        contentPadding: _textFieldConfig?.contentPadding ??
-            const EdgeInsets.symmetric(horizontal: 6),
+        contentPadding: _textFieldConfig?.contentPadding ?? EdgeInsets.zero,
         border: _outLineBorder,
         focusedBorder: _outLineBorder,
         enabledBorder: _outLineBorder,
@@ -336,25 +445,30 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     );
   }
 
-  Widget _buildActionButtons(bool isRecordingValue) {
+  Widget _buildActionButtons(bool isRecordingValue, Color iconColor) {
     return ValueListenableBuilder<String>(
       valueListenable: _inputText,
       builder: (context, inputTextValue, _) {
         final hasContent = inputTextValue.trim().isNotEmpty || isRecordingValue;
         final isEnabled = _textFieldConfig?.enabled ?? true;
 
-        if (hasContent) {
-          return _buildSendButton(isRecordingValue, isEnabled);
-        }
-
-        return _buildUtilityButtons(isRecordingValue, isEnabled);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasContent)
+              _buildSendButton(isRecordingValue, isEnabled, iconColor)
+            else
+              _buildUtilityButtons(isRecordingValue, isEnabled),
+          ],
+        );
       },
     );
   }
 
-  Widget _buildSendButton(bool isRecordingValue, bool isEnabled) {
+  Widget _buildSendButton(
+      bool isRecordingValue, bool isEnabled, Color iconColor) {
     return IconButton(
-      color: _sendMessageConfig?.defaultSendButtonColor ?? Colors.green,
+      color: iconColor,
       onPressed:
           isEnabled ? () => _handleSendOrStopRecording(isRecordingValue) : null,
       padding: EdgeInsets.zero,
@@ -421,10 +535,8 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
       icon: (isRecordingValue
               ? _voiceRecordingConfig?.stopIcon
               : _voiceRecordingConfig?.micIcon) ??
-          Icon(
-            isRecordingValue ? Icons.stop : Icons.mic,
-            color: _voiceRecordingConfig?.recorderIconColor,
-          ),
+          Icon(isRecordingValue ? Icons.stop : Icons.mic,
+              color: _voiceRecordingConfig?.recorderIconColor),
     );
   }
 
@@ -454,10 +566,8 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     await _pickImage(source, config: config);
   }
 
-  Future<void> _pickImage(
-    ImageSource imageSource, {
-    ImagePickerConfiguration? config,
-  }) async {
+  Future<void> _pickImage(ImageSource imageSource,
+      {ImagePickerConfiguration? config}) async {
     if (!mounted) return;
 
     final hadFocus = widget.focusNode.hasFocus;
@@ -475,7 +585,6 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
       );
 
       if (image == null) return;
-
       String? imagePath = image.path;
 
       // Process image if callback provided
@@ -510,7 +619,6 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
         await _stopRecording();
       }
     } catch (e) {
-      // Handle recording errors
       debugPrint('Voice recording error: $e');
       _isRecording.value = false;
     }
@@ -536,11 +644,11 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
   Future<void> _cancelRecording() async {
     if (!_isVoiceRecordingSupported ||
         _controller == null ||
-        !_isRecording.value) return;
-
+        !_isRecording.value) {
+      return;
+    }
     try {
       final path = await _controller!.stop();
-
       if (path != null) {
         final file = File(path);
         if (await file.exists()) {
@@ -560,5 +668,203 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
       () => _composingStatus.value = TypeWriterStatus.typing,
     );
     _inputText.value = inputText;
+  }
+}
+
+/// Customized Whatsapp category view
+class WhatsAppCategoryView extends CategoryView {
+  const WhatsAppCategoryView(
+    super.config,
+    super.state,
+    super.tabController,
+    super.pageController, {
+    super.key,
+  });
+
+  @override
+  WhatsAppCategoryViewState createState() => WhatsAppCategoryViewState();
+}
+
+class WhatsAppCategoryViewState extends State<WhatsAppCategoryView>
+    with SkinToneOverlayStateMixin {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: widget.config.categoryViewConfig.backgroundColor,
+      height: 60,
+      alignment: Alignment.topCenter,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: WhatsAppTabBar(
+              widget.config,
+              widget.tabController,
+              widget.pageController,
+              widget.state.categoryEmoji,
+              closeSkinToneOverlay,
+            ),
+          ),
+          _buildExtraTab(widget.config.categoryViewConfig.extraTab),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExtraTab(extraTab) {
+    if (extraTab == CategoryExtraTab.BACKSPACE) {
+      return BackspaceButton(
+        widget.config,
+        widget.state.onBackspacePressed,
+        widget.state.onBackspaceLongPressed,
+        widget.config.categoryViewConfig.backspaceColor,
+      );
+    } else if (extraTab == CategoryExtraTab.SEARCH) {
+      return SearchButton(
+        widget.config,
+        widget.state.onShowSearchView,
+        widget.config.categoryViewConfig.iconColor,
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
+}
+
+class WhatsAppTabBar extends StatelessWidget {
+  const WhatsAppTabBar(
+    this.config,
+    this.tabController,
+    this.pageController,
+    this.categoryEmojis,
+    this.closeSkinToneOverlay, {
+    super.key,
+  });
+
+  final Config config;
+
+  final TabController tabController;
+
+  final PageController pageController;
+
+  final List<CategoryEmoji> categoryEmojis;
+
+  final VoidCallback closeSkinToneOverlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBar(
+      labelColor: config.categoryViewConfig.iconColorSelected,
+      indicatorColor: config.categoryViewConfig.indicatorColor,
+      unselectedLabelColor: config.categoryViewConfig.iconColor,
+      dividerColor: config.categoryViewConfig.dividerColor,
+      controller: tabController,
+      labelPadding: const EdgeInsets.only(top: 1.0),
+      indicatorSize: TabBarIndicatorSize.label,
+      automaticIndicatorColorAdjustment: true,
+      enableFeedback: true,
+      padding: EdgeInsets.zero,
+      indicator: BoxDecoration(
+        shape: BoxShape.circle,
+        color: config.categoryViewConfig.indicatorColor.withValues(alpha: 0.15),
+      ),
+      onTap: (index) {
+        closeSkinToneOverlay();
+        pageController.jumpToPage(index);
+      },
+      tabs: categoryEmojis
+          .asMap()
+          .entries
+          .map<Widget>((item) => _buildCategory(item.key, item.value.category))
+          .toList(),
+    );
+  }
+
+  Widget _buildCategory(int index, Category category) {
+    return Tab(
+      height: 40,
+      child: Padding(
+        padding: const EdgeInsets.all(6.0),
+        child: Icon(
+          getIconForCategory(
+            config.categoryViewConfig.categoryIcons,
+            category,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Custom Whatsapp Search view implementation
+class WhatsAppSearchView extends SearchView {
+  const WhatsAppSearchView(super.config, super.state, super.showEmojiView,
+      {super.key});
+
+  @override
+  WhatsAppSearchViewState createState() => WhatsAppSearchViewState();
+}
+
+class WhatsAppSearchViewState extends SearchViewState {
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final emojiSize =
+          widget.config.emojiViewConfig.getEmojiSize(constraints.maxWidth);
+      final emojiBoxSize =
+          widget.config.emojiViewConfig.getEmojiBoxSize(constraints.maxWidth);
+      return Container(
+        color: widget.config.searchViewConfig.backgroundColor,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: emojiBoxSize + 8.0,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                scrollDirection: Axis.horizontal,
+                itemCount: results.length,
+                itemBuilder: (context, index) {
+                  return buildEmoji(
+                    results[index],
+                    emojiSize,
+                    emojiBoxSize,
+                  );
+                },
+              ),
+            ),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: widget.showEmojiView,
+                  color: widget.config.searchViewConfig.buttonIconColor,
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    size: 20.0,
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    onChanged: onTextInputChanged,
+                    focusNode: focusNode,
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: widget.config.searchViewConfig.hintText,
+                      hintStyle: TextStyle(
+                        color: widget.config.emojiTextStyle?.color ??
+                            Theme.of(context).hintColor,
+                        fontWeight: FontWeight.normal,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
