@@ -248,52 +248,56 @@ class _ChatUITextFieldState extends State<ChatUITextField> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          padding: _textFieldConfig?.padding ?? EdgeInsets.zero,
-          margin: _textFieldConfig?.margin,
-          decoration: BoxDecoration(
-            borderRadius: _textFieldConfig?.borderRadius ??
-                BorderRadius.circular(textFieldBorderRadius),
-            color: _sendMessageConfig?.textFieldBackgroundColor ??
-                theme.colorScheme.surface,
-          ),
-          child: ValueListenableBuilder<bool>(
-            valueListenable: _isRecording,
-            builder: (context, isRecordingValue, _) {
-              return Row(
-                children: [
-                  // Leading button
-                  if (_sendMessageConfig?.leadingButtonBuilder != null ||
-                      !isRecordingValue)
-                    _sendMessageConfig?.leadingButtonBuilder?.call(context) ??
-                        // --- Emoji toggle button ---
-                        IconButton(
-                          icon: Icon(
-                            _isEmojiPickerVisible
-                                ? Icons.keyboard
-                                : Icons.emoji_emotions_outlined,
-                            color: iconColor,
-                          ),
-                          onPressed: _toggleEmojiPicker,
-                        )
-                  else
-                    _buildCancelRecordingButton(),
+        Padding(
+          padding: _isEmojiPickerVisible
+              ? const EdgeInsets.fromLTRB(8, 0, 8, 8)
+              : EdgeInsets.zero,
+          child: Container(
+            padding: _textFieldConfig?.padding ?? EdgeInsets.zero,
+            margin: _textFieldConfig?.margin,
+            decoration: BoxDecoration(
+              borderRadius: _textFieldConfig?.borderRadius ??
+                  BorderRadius.circular(textFieldBorderRadius),
+              color: _sendMessageConfig?.textFieldBackgroundColor ??
+                  theme.colorScheme.surface,
+            ),
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _isRecording,
+              builder: (context, isRecordingValue, _) {
+                return Row(
+                  children: [
+                    // Leading button
+                    if (_sendMessageConfig?.leadingButtonBuilder != null ||
+                        !isRecordingValue)
+                      _sendMessageConfig?.leadingButtonBuilder?.call(context) ??
+                          // --- Emoji toggle button ---
+                          IconButton(
+                            icon: Icon(
+                              _isEmojiPickerVisible
+                                  ? Icons.keyboard
+                                  : Icons.emoji_emotions_outlined,
+                              color: iconColor,
+                            ),
+                            onPressed: _toggleEmojiPicker,
+                          )
+                    else
+                      _buildCancelRecordingButton(),
 
-                  // Main input area
-                  Expanded(
-                    child: isRecordingValue && _controller != null
-                        ? _buildVoiceRecordingWaveform()
-                        : _buildTextInput(),
-                  ),
+                    // Main input area
+                    Expanded(
+                      child: isRecordingValue && _controller != null
+                          ? _buildVoiceRecordingWaveform()
+                          : _buildTextInput(),
+                    ),
 
-                  // --- Action buttons ---
-                  _buildActionButtons(isRecordingValue, iconColor),
-                ],
-              );
-            },
+                    // --- Action buttons ---
+                    _buildActionButtons(isRecordingValue, iconColor),
+                  ],
+                );
+              },
+            ),
           ),
         ),
-        if (_isEmojiPickerVisible) const SizedBox(height: 8),
         // --- Emoji Picker Bottom Sheet ---
         if (_isEmojiPickerVisible)
           SizedBox(
