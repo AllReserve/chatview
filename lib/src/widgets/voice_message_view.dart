@@ -5,6 +5,7 @@ import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:chatview/chatview.dart' show Message;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -42,10 +43,10 @@ class VoiceMessageView extends StatefulWidget {
 
 class _VoiceMessageViewState extends State<VoiceMessageView> {
   late PlayerController controller;
-  late StreamSubscription<PlayerState> playerStateSubscription;
+  StreamSubscription<PlayerState>? playerStateSubscription;
 
   final ValueNotifier<PlayerState> _playerState =
-      ValueNotifier(PlayerState.stopped);
+      ValueNotifier<PlayerState>(PlayerState.stopped);
 
   // Download state
   DownloadTask? _task;
@@ -66,7 +67,7 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
 
   @override
   void dispose() {
-    playerStateSubscription.cancel();
+    playerStateSubscription?.cancel();
     controller.dispose();
     _playerState.dispose();
     _dlState.dispose();
@@ -79,6 +80,14 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
     final isUrl = _looksLikeUrl(msgPathOrUrl);
 
     if (!isUrl) {
+      // Must be a local file path. Validate then prepare.
+      final ok = await _validateLocalAudio(msgPathOrUrl);
+      if (!ok) {
+        _dlState.value = _DlState.error;
+        _lastError = 'Local file is missing or not a valid audio.';
+        setState(() {});
+        return;
+      }
       _localPath = msgPathOrUrl;
       await _preparePlayer(_localPath!);
       return;
@@ -86,19 +95,18 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
 
     // If already downloaded file exists (e.g., from previous run), use it
     final existing = await _findExistingDownloaded(msgPathOrUrl);
-    if (existing != null && await File(existing).exists()) {
+    if (existing != null && await _validateLocalAudio(existing)) {
       _localPath = existing;
       await _preparePlayer(_localPath!);
       return;
     }
 
-    // Set up download task
+    // Prepare download
     _dlState.value = _DlState.ready;
     _task = await GenericFileDownloader.createTask(
       url: msgPathOrUrl,
-      options: DownloadOptions(
+      options: const DownloadOptions(
         subDirectory: 'voice_messages',
-        fileName: _deriveBasename(msgPathOrUrl),
         enableResume: true,
       ),
       onProgress: (received, total) {
@@ -109,25 +117,64 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
         }
       },
       onDebug: (m) {
-        // debugPrint('[voice-dl] $m'); // uncomment for debugging
+        // debugPrint('[voice-dl] $m'); // Uncomment to trace
       },
     );
 
     // Auto-start download
-    _startDownload();
+    await _startDownload();
+  }
+
+  Future<bool> _validateLocalAudio(String path) async {
+    try {
+      final f = File(path);
+      if (!await f.exists()) return false;
+      final len = await f.length();
+      if (len == 0) return false;
+
+      // Quick MIME sniff by extension/name. If we can detect a known non-audio,
+      // we reject early. If unknown, allow (iOS may still decode).
+      final mime = lookupMimeType(path) ?? '';
+      if (mime.isNotEmpty) {
+        if (mime.startsWith('text/') ||
+            mime == 'application/json' ||
+            mime == 'text/html') {
+          return false;
+        }
+      }
+
+      // Extra guard: ensure path is local (not URL)
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _preparePlayer(String filePath) async {
-    await controller.preparePlayer(
-      path: filePath,
-      noOfSamples: widget.config?.playerWaveStyle
-              ?.getSamplesForWidth(widget.screenWidth * 0.5) ??
-          playerWaveStyle.getSamplesForWidth(widget.screenWidth * 0.5),
-    );
-    widget.onMaxDuration?.call(controller.maxDuration);
-    playerStateSubscription = controller.onPlayerStateChanged
-        .listen((state) => _playerState.value = state);
-    if (mounted) setState(() {});
+    try {
+      await controller.preparePlayer(
+        path: filePath,
+        noOfSamples: widget.config?.playerWaveStyle
+                ?.getSamplesForWidth(widget.screenWidth * 0.5) ??
+            playerWaveStyle.getSamplesForWidth(widget.screenWidth * 0.5),
+      );
+      widget.onMaxDuration?.call(controller.maxDuration);
+      playerStateSubscription?.cancel();
+      playerStateSubscription = controller.onPlayerStateChanged
+          .listen((state) => _playerState.value = state);
+      if (mounted) setState(() {});
+    } on Object catch (e) {
+      // If iOS fails to decode due to unsupported codec, surface error UI
+      _lastError =
+          'Failed to prepare audio. File may be corrupted or codec unsupported.';
+      _dlState.value = _DlState.error;
+      if (mounted) setState(() {});
+      debugPrint(
+          'Failed to prepare audio. File may be corrupted or codec unsupported. $e');
+    }
   }
 
   Future<void> _startDownload() async {
@@ -136,11 +183,20 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
     _dlState.value = _DlState.downloading;
     try {
       final file = await _task!.start();
+      final valid = await _validateLocalAudio(file.path);
+      if (!valid) {
+        // Clean up invalid file and show error
+        try {
+          await File(file.path).delete();
+        } catch (_) {}
+        _dlState.value = _DlState.error;
+        _lastError = 'Downloaded file is not a valid audio.';
+        return;
+      }
       _localPath = file.path;
       _dlState.value = _DlState.completed;
       await _preparePlayer(_localPath!);
     } catch (e) {
-      // If paused, keep state as paused
       if (_task!.isPaused) {
         _dlState.value = _DlState.paused;
         return;
@@ -186,7 +242,6 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
   }
 
   Future<String?> _findExistingDownloaded(String url) async {
-    // We mirror the same naming used in downloader: <app-docs>/voice_messages/<base>.<ext>
     final docs = await getApplicationDocumentsDirectory();
     final folder = Directory(p.join(docs.path, 'voice_messages'));
     if (!await folder.exists()) return null;
@@ -198,7 +253,6 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
       return bn == base || bn.startsWith('$base(');
     }).toList();
 
-    // Return the most recent one if any
     candidates
         .sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
     return candidates.isNotEmpty ? candidates.first.path : null;
@@ -270,7 +324,7 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
           },
         ),
         AudioFileWaveforms(
-          size: Size(widget.screenWidth * 0.50, 60),
+          size: Size(widget.screenWidth * 0.40, 60),
           playerController: controller,
           waveformType: WaveformType.fitWidth,
           playerWaveStyle: widget.config?.playerWaveStyle ?? playerWaveStyle,
@@ -324,7 +378,6 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
           width: widget.screenWidth * 0.70,
           child: Row(
             children: [
-              // Control button
               IconButton(
                 icon: Icon(
                   isDownloading
@@ -340,13 +393,26 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
                   }
                 },
               ),
-              // Progress + status
               Expanded(
                 child: ValueListenableBuilder<double>(
                   valueListenable: _progress,
                   builder: (context, p, __) {
                     final showIndeterminate =
                         p <= 0.0 || p.isNaN || p.isInfinite;
+                    final statusText = isError
+                        ? (_lastError
+                                    ?.toString()
+                                    .contains('not a valid audio') ==
+                                true
+                            ? 'Invalid audio. Tap retry'
+                            : 'Failed. Tap retry')
+                        : isPaused
+                            ? 'Paused'
+                            : isReady
+                                ? 'Ready to download'
+                                : showIndeterminate
+                                    ? 'Downloading...'
+                                    : '${(p * 100).toStringAsFixed(0)}%';
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -359,26 +425,19 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          isError
-                              ? 'Failed. Tap to retry'
-                              : isPaused
-                                  ? 'Paused'
-                                  : isReady
-                                      ? 'Ready to download'
-                                      : showIndeterminate
-                                          ? 'Downloading...'
-                                          : '${(p * 100).toStringAsFixed(0)}%',
+                          statusText,
                           style: TextStyle(
                             color: textColor,
                             fontSize: 12,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     );
                   },
                 ),
               ),
-              // Cancel or Retry
               IconButton(
                 icon: Icon(
                   isError ? Icons.refresh : Icons.cancel,
@@ -418,7 +477,6 @@ class _VoiceMessageViewState extends State<VoiceMessageView> {
 
 enum _DlState { idle, ready, downloading, paused, completed, error }
 
-// Extension for mm:ss formatting
 extension on int {
   String mmss() {
     final totalSeconds = this ~/ 1000;

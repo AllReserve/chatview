@@ -40,7 +40,7 @@ class SelectedImageViewWidgetState extends State<SelectedImageViewWidget> {
           width: mqSize.width,
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.symmetric(
-            vertical: 4,
+            vertical: 8,
             horizontal: 6,
           ),
           decoration: BoxDecoration(
@@ -49,58 +49,70 @@ class SelectedImageViewWidgetState extends State<SelectedImageViewWidget> {
               textFieldBorderRadius,
             ),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(
-                images.length,
-                (index) {
-                  final imagePath = images[index];
-                  return SizedBox(
-                    height: widget.sendMessageConfig?.selectedImageViewHeight ??
-                        mqSize.height / 6,
-                    child: Container(
-                      margin: widget.sendMessageConfig?.selectedImageMargin ??
-                          const EdgeInsets.symmetric(
-                            horizontal: 10,
-                          ),
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.all(
-                              Radius.circular(
-                                widget.sendMessageConfig?.imageBorderRadius ??
-                                    12,
+          child: ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(
+                (widget.sendMessageConfig?.imageBorderRadius ?? 12) + 10,
+              ),
+              topRight: Radius.circular(
+                (widget.sendMessageConfig?.imageBorderRadius ?? 12) + 10,
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: List.generate(
+                  images.length,
+                  (index) {
+                    final imagePath = images[index];
+                    return SizedBox(
+                      height:
+                          widget.sendMessageConfig?.selectedImageViewHeight ??
+                              mqSize.height / 6,
+                      child: Container(
+                        margin: widget.sendMessageConfig?.selectedImageMargin ??
+                            const EdgeInsets.symmetric(
+                              horizontal: 10,
+                            ),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(
+                                  widget.sendMessageConfig?.imageBorderRadius ??
+                                      12,
+                                ),
+                              ),
+                              child: Image.file(
+                                File(imagePath),
+                                height: mqSize.height / 8,
                               ),
                             ),
-                            child: Image.file(
-                              File(imagePath),
-                              height: mqSize.height / 8,
+                            Positioned(
+                              right: -10,
+                              top: -10,
+                              child: IconButton(
+                                iconSize: widget.sendMessageConfig
+                                        ?.removeImageIconSize ??
+                                    18,
+                                icon:
+                                    widget.sendMessageConfig?.removeImageIcon ??
+                                        Icon(
+                                          Icons.cancel,
+                                          color: widget.sendMessageConfig
+                                                  ?.removeImageIconColor ??
+                                              Colors.white,
+                                          weight: 1,
+                                        ),
+                                onPressed: () => onImageRemove(imagePath),
+                              ),
                             ),
-                          ),
-                          Positioned(
-                            right: -10,
-                            top: -10,
-                            child: IconButton(
-                              iconSize: widget
-                                      .sendMessageConfig?.removeImageIconSize ??
-                                  18,
-                              icon: widget.sendMessageConfig?.removeImageIcon ??
-                                  Icon(
-                                    Icons.cancel,
-                                    color: widget.sendMessageConfig
-                                            ?.removeImageIconColor ??
-                                        Colors.white,
-                                    weight: 1,
-                                  ),
-                              onPressed: () => onImageRemove(imagePath),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ),

@@ -220,9 +220,8 @@ class _ChatScreenState extends State<ChatScreen> {
               extendWaveform: true,
             ),
           ),
-          enableCameraImagePicker: false,
-          enableGalleryImagePicker: false,
-          shouldSendImageWithText: true,
+          // enableCameraImagePicker: false,
+          // enableGalleryImagePicker: false,
           trailingButtonBuilder: (context) => IconButton(
             onPressed: () {},
             padding: EdgeInsets.zero,
@@ -365,9 +364,10 @@ class _ChatScreenState extends State<ChatScreen> {
       id: DateTime.now().toString(),
       createdAt: DateTime.now(),
       message: message,
-      sentBy: (_chatController.initialMessageList.length ~/ 2).isEven
-          ? _chatController.currentUser.id
-          : _chatController.otherUsers.first.id,
+      // sentBy: (_chatController.initialMessageList.length ~/ 2).isEven
+      //     ? _chatController.currentUser.id
+      //     : _chatController.otherUsers.first.id,
+      sentBy: _chatController.currentUser.id,
       replyMessage: replyMessage,
       messageType: messageType,
     );
