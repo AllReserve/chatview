@@ -36,6 +36,7 @@ export 'src/extensions/extensions.dart' show MessageTypes;
 export 'src/models/config_models/receipts_widget_config.dart';
 export 'src/models/models.dart';
 export 'src/utils/chat_view_locale.dart';
+export 'src/utils/downloader.dart';
 export 'src/utils/package_strings.dart';
 export 'src/values/enumeration.dart';
 export 'src/values/typedefs.dart';
