@@ -239,6 +239,7 @@ class _ChatScreenState extends State<ChatScreen> {
             receiptsWidgetConfig:
                 const ReceiptsWidgetConfig(showReceiptsIn: ShowReceiptsIn.all),
             color: theme.outgoingChatBubbleColor,
+            textStyle: TextStyle(color: theme.appBarColor),
           ),
           inComingChatBubbleConfig: ChatBubble(
             linkPreviewConfig: LinkPreviewConfiguration(
@@ -273,6 +274,14 @@ class _ChatScreenState extends State<ChatScreen> {
           backgroundColor: theme.reactionPopupColor,
         ),
         messageConfig: MessageConfiguration(
+          voiceMessageConfig: const VoiceMessageConfiguration(
+            playerWaveStyle: PlayerWaveStyle(
+              backgroundColor: Colors.red,
+              liveWaveColor: Colors.green,
+              seekLineColor: Colors.purple,
+              fixedWaveColor: Colors.yellow,
+            ),
+          ),
           messageReactionConfig: MessageReactionConfiguration(
             backgroundColor: theme.messageReactionBackGroundColor,
             borderColor: theme.messageReactionBackGroundColor,
@@ -356,7 +365,9 @@ class _ChatScreenState extends State<ChatScreen> {
       id: DateTime.now().toString(),
       createdAt: DateTime.now(),
       message: message,
-      sentBy: _chatController.currentUser.id,
+      sentBy: (_chatController.initialMessageList.length ~/ 2).isEven
+          ? _chatController.currentUser.id
+          : _chatController.otherUsers.first.id,
       replyMessage: replyMessage,
       messageType: messageType,
     );
